@@ -15,6 +15,8 @@ lazy val dl4j =
       scalaVersion := "2.11.12", // ScalNet and ND4S are only available for Scala 2.11
       libraryDependencies ++= Seq(
         library.dl4j,
+        library.dl4jCuda,
+        library.dl4jUi,
         library.logbackClassic,
         library.nd4jNativePlatform,
         library.scalNet
@@ -34,6 +36,9 @@ lazy val tensorFlow =
         "ffmpeg" -> "3.4.1"
       ),
       libraryDependencies ++= Seq(
+        library.betterFiles,
+        library.janino,
+        library.logbackClassic,
         library.tensorFlow,
         library.tensorFlowData
       ),
@@ -47,15 +52,22 @@ lazy val tensorFlow =
 lazy val library =
   new {
     object Version {
+      val betterFiles = "3.4.0"
       val dl4j = "1.0.0-alpha"
+      val janino = "2.6.1"
       val logbackClassic = "1.2.3"
       val scalaCheck = "1.13.5"
       val scalaTest  = "3.0.4"
-      val tensorFlow = "0.1.1"
+      val tensorFlow = "0.2.4"
+
     }
+    val betterFiles = "com.github.pathikrit" %% "better-files" % Version.betterFiles
     val dl4j = "org.deeplearning4j" % "deeplearning4j-core" % Version.dl4j
+    val dl4jUi = "org.deeplearning4j" %% "deeplearning4j-ui" % Version.dl4j
+    val janino = "org.codehaus.janino" % "janino" % Version.janino
     val logbackClassic = "ch.qos.logback" % "logback-classic" % Version.logbackClassic
-    val nd4jNativePlatform = "org.nd4j" % "nd4j-native-platform" % Version.dl4j
+    val nd4jNativePlatform = "org.nd4j" % "nd4j-cuda-9.0-platform" % Version.dl4j
+    val dl4jCuda = "org.deeplearning4j" % "deeplearning4j-cuda-9.0" % Version.dl4j
     val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
     val scalaTest  = "org.scalatest"  %% "scalatest"  % Version.scalaTest
     val scalNet = "org.deeplearning4j" %% "scalnet" % Version.dl4j
@@ -70,7 +82,7 @@ lazy val library =
 
 lazy val settings =
   Seq(
-    scalaVersion := "2.12.4",
+    scalaVersion := "2.12.6",
     organization := "io.brunk",
     organizationName := "Sören Brunk",
     startYear := Some(2017),

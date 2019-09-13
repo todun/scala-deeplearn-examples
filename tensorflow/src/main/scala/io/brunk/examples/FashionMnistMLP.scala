@@ -16,34 +16,31 @@
 
 package io.brunk.examples
 
-import org.platanios.tensorflow.api._
-import org.platanios.tensorflow.data.image.MNISTLoader
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
 import java.nio.file.Paths
 
-import org.platanios.tensorflow.api.ops.variables.GlorotUniformInitializer
+import com.typesafe.scalalogging.Logger
+import org.platanios.tensorflow.api._
+import org.platanios.tensorflow.data.image.MNISTLoader
+import org.platanios.tensorflow.data.image.MNISTLoader.FASHION_MNIST
+import org.slf4j.LoggerFactory
 
-/** Simple multilayer perceptron for classifying handwritten digits from the MNIST dataset
+/** Simple multilayer perceptron for classifying handwritten digits from the Fashion MNIST dataset
   *
   * Implemented using TensorFlow for Scala based on the example from
   * https://github.com/eaplatanios/tensorflow_scala/blob/0b7ca14de53935a34deac29802d085729228c4fe/examples/src/main/scala/org/platanios/tensorflow/examples/MNIST.scala
   *
   * @author Sören Brunk
   */
-object MnistMLP {
-  private[this] val logger = Logger(LoggerFactory.getLogger(MnistMLP.getClass))
+object FashionMnistMLP {
+  private[this] val logger = Logger(LoggerFactory.getLogger(FashionMnistMLP.getClass))
 
   def main(args: Array[String]): Unit = {
 
-    val numHidden    = 512     // size (number of neurons) of our hidden layer
-    val numOutputs   = 10      // digits from 0 to 9
-    val learningRate = 0.01
-    val batchSize    = 128
-    val numEpochs    = 10
+    val batchSize    = 2048
+    val numEpochs    = 500
 
     // download and load the MNIST images as tensors
-    val dataSet = MNISTLoader.load(Paths.get("datasets/MNIST"))
+    val dataSet = MNISTLoader.load(Paths.get("datasets/Fashion-MNIST"), FASHION_MNIST)
     val trainImages = tf.data.TensorSlicesDataset(dataSet.trainImages)
     val trainLabels = tf.data.TensorSlicesDataset(dataSet.trainLabels)
     val testImages = tf.data.TensorSlicesDataset(dataSet.testImages)
@@ -51,31 +48,31 @@ object MnistMLP {
     val trainData =
       trainImages.zip(trainLabels)
           .repeat()
-          .shuffle(10000)
+          .shuffle(60000)
           .batch(batchSize)
           .prefetch(10)
     val evalTrainData = trainImages.zip(trainLabels).batch(1000).prefetch(10)
     val evalTestData = testImages.zip(testLabels).batch(1000).prefetch(10)
 
     // define the neural network architecture
-    val input = tf.learn.Input(UINT8, Shape(-1, dataSet.trainImages.shape(1), dataSet.trainImages.shape(2))) // type and shape of images
-    val trainInput = tf.learn.Input(UINT8, Shape(-1)) // type and shape of labels
+    val input = tf.learn.Input(UINT8, Shape(-1, 28, 28))          // type and shape of our input images
+    val labelInput = tf.learn.Input(UINT8, Shape(-1))             // type and shape of our labels
 
-    val layer = tf.learn.Flatten("Input/Flatten") >>  // flatten the images into a single vector
-      tf.learn.Cast("Input/Cast", FLOAT32) >>
-      tf.learn.Linear("Layer_1/Linear", numHidden, weightsInitializer = GlorotUniformInitializer()) >> // hidden layer
-      tf.learn.ReLU("Layer_1/ReLU") >> // hidden layer activation
-      tf.learn.Linear("OutputLayer/Linear", numOutputs, weightsInitializer = GlorotUniformInitializer()) // output layer
+    val layer = tf.learn.Flatten("Input/Flatten") >>              // flatten the images into a single vector
+      tf.learn.Cast("Input/Cast", FLOAT32) >>                     // cast input to float
+      tf.learn.Linear("Layer_1/Linear", units = 512) >>           // hidden layer
+      tf.learn.ReLU("Layer_1/ReLU", 0.1f) >>                            // hidden layer activation
+      tf.learn.Linear("OutputLayer/Linear", units = 10)           // output layer
 
-    val trainingInputLayer = tf.learn.Cast("TrainInput/Cast", INT64) // cast labels to long
+    val trainInputLayer = tf.learn.Cast("TrainInput/Cast", INT64) // cast labels to long
 
-    val loss = tf.learn.SparseSoftmaxCrossEntropy("Loss/CrossEntropy") >>
+    val loss = tf.learn.SparseSoftmaxCrossEntropy("Loss/CrossEntropy") >>   // loss/error function
         tf.learn.Mean("Loss/Mean") >> tf.learn.ScalarSummary("Loss/Summary", "Loss")
-    val optimizer = tf.train.GradientDescent(learningRate)
+    val optimizer = tf.train.Adam(learningRate = 0.001)          // the optimizer updates our weights
 
-    val model = tf.learn.Model.supervised(input, layer, trainInput, trainingInputLayer, loss, optimizer)
+    val model = tf.learn.Model.supervised(input, layer, labelInput, trainInputLayer, loss, optimizer)
 
-    val summariesDir = Paths.get("temp/mnist-mlp")
+    val summariesDir = Paths.get("temp/fashion-mnist-mlp")
     val accMetric = tf.metrics.MapMetric(
       (v: (Output, Output)) => (v._1.argmax(-1), v._2), tf.metrics.Accuracy())
     val estimator = tf.learn.InMemoryEstimator(
@@ -86,10 +83,10 @@ object MnistMLP {
         tf.learn.LossLogger(trigger = tf.learn.StepHookTrigger(100)),
         tf.learn.Evaluator(
           log = true, datasets = Seq(("Train", () => evalTrainData), ("Test", () => evalTestData)),
-          metrics = Seq(accMetric), trigger = tf.learn.StepHookTrigger(1000), name = "Evaluator"),
+          metrics = Seq(accMetric), trigger = tf.learn.StepHookTrigger(500), name = "Evaluator", summaryDir = summariesDir),
         tf.learn.StepRateLogger(log = false, summaryDir = summariesDir, trigger = tf.learn.StepHookTrigger(100)),
         tf.learn.SummarySaver(summariesDir, tf.learn.StepHookTrigger(100)),
-        tf.learn.CheckpointSaver(summariesDir, tf.learn.StepHookTrigger(1000))),
+        tf.learn.CheckpointSaver(summariesDir, tf.learn.StepHookTrigger(500))),
       tensorBoardConfig = tf.learn.TensorBoardConfig(summariesDir, reloadInterval = 1))
 
     // train the model
